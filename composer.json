@@ -56,6 +56,9 @@
     "laravel": {
       "providers": [
         "One23\\LaravelClickhouse\\ClickhouseServiceProvider"
+      ],
+      "dont-discover": [
+        "the-tinderbox/clickhouse-builder"
       ]
     }
   }
