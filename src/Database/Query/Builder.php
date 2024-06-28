@@ -20,6 +20,7 @@ use InvalidArgumentException;
 use One23\LaravelClickhouse\Database\Connection;
 use One23\LaravelClickhouse\Database\Eloquent\Builder as EloquentBuilder;
 use One23\LaravelClickhouse\Database\Query\Grammars\Grammar;
+use One23\LaravelClickhouse\Exceptions\QueryException;
 use Tinderbox\ClickhouseBuilder\Integrations\Laravel\Builder as BaseBuilder;
 use Tinderbox\ClickhouseBuilder\Query\Enums\Operator;
 use Tinderbox\ClickhouseBuilder\Query\Expression;
@@ -55,6 +56,9 @@ class Builder extends BaseBuilder implements BuilderContract
 
     /** @var int */
     public $limit;
+
+    /** @var array */
+    public $groupLimit;
 
     /** @var int */
     public $offset;
@@ -114,8 +118,36 @@ class Builder extends BaseBuilder implements BuilderContract
     // fromSub
     // fromRaw
     // createSub
-    // parseSub
-    // prependDatabaseNameIfCrossDatabaseQuery
+
+    protected function parseSub($query)
+    {
+        if ($query instanceof self || $query instanceof EloquentBuilder || $query instanceof Relation) {
+            $query = $this->prependDatabaseNameIfCrossDatabaseQuery($query);
+
+            return [$query->toSql(), $query->getBindings()];
+        } elseif (is_string($query)) {
+            return [$query, []];
+        } else {
+            throw new InvalidArgumentException(
+                'A subquery must be a query builder instance, a Closure, or a string.'
+            );
+        }
+    }
+
+    protected function prependDatabaseNameIfCrossDatabaseQuery($query)
+    {
+        if ($query->getConnection()->getDatabaseName() !==
+            $this->getConnection()->getDatabaseName()) {
+            $databaseName = $query->getConnection()->getDatabaseName();
+
+            if (! str_starts_with($query->from, $databaseName) && ! str_contains($query->from, '.')) {
+                $query->from($databaseName . '.' . $query->from);
+            }
+        }
+
+        return $query;
+    }
+
     // addSelect
     // distinct
     // from
@@ -458,13 +490,36 @@ class Builder extends BaseBuilder implements BuilderContract
 
     public function get($columns = ['*']): Collection
     {
-        return collect($this->onceWithColumns(Arr::wrap($columns), function() {
+        $items = collect($this->onceWithColumns(Arr::wrap($columns), function() {
             return parent::get();
         }));
+
+        return $this->applyAfterQueryCallbacks(
+            isset($this->groupLimit) ? $this->withoutGroupLimitKeys($items) : $items
+        );
     }
 
     // runSelect
-    // withoutGroupLimitKeys
+
+    protected function withoutGroupLimitKeys($items)
+    {
+        $keysToRemove = ['laravel_row'];
+
+        if (is_string($this->groupLimit['column'])) {
+            $column = last(explode('.', $this->groupLimit['column']));
+
+            $keysToRemove[] = '@laravel_group := ' . $this->grammar->wrap($column);
+            $keysToRemove[] = '@laravel_group := ' . $this->grammar->wrap('pivot_' . $column);
+        }
+
+        $items->each(function($item) use ($keysToRemove) {
+            foreach ($keysToRemove as $key) {
+                unset($item->$key);
+            }
+        });
+
+        return $items;
+    }
 
     public function paginate($perPage = 15, $columns = ['*'], $pageName = 'page', $page = null, $total = null): LengthAwarePaginator
     {
@@ -636,7 +691,46 @@ class Builder extends BaseBuilder implements BuilderContract
     // insertGetId
     // insertUsing
     // insertOrIgnoreUsing
-    // update
+
+    /**
+     * @return int
+     */
+    public function update(array $values)
+    {
+        $this->applyBeforeQueryCallbacks();
+
+        $values = collect($values)->map(function($value) {
+            if (! $value instanceof Builder) {
+                return ['value' => $value, 'bindings' => $value];
+            }
+
+            [$query, $bindings] = $this->parseSub($value);
+
+            return ['value' => new Expression("({$query})"), 'bindings' => fn() => $bindings];
+        });
+
+        if ($values->isEmpty()) {
+            throw QueryException::cannotUpdateEmptyValues();
+        }
+
+        $table = $this->grammar->wrap($this->getFrom()->getTable());
+
+        $cluster = '';
+        if (! is_null($this->getOnCluster())) {
+            $cluster = " ON CLUSTER {$this->getOnCluster()}";
+        }
+
+        $columns = collect($values)->map(function($value, $key) {
+            return $this->grammar->wrap($key) . ' = ' . $this->grammar->parameter($value);
+        })->implode(', ');
+
+        $where = $this->grammar->compileWheresComponent($this, $this->getWheres());
+
+        $sql = "ALTER TABLE {$table} {$cluster} UPDATE {$columns} {$where};";
+
+        return $this->connection->statement($sql) ? 1 : 0;
+    }
+
     // updateFrom
     // updateOrInsert
     // upsert
@@ -644,7 +738,37 @@ class Builder extends BaseBuilder implements BuilderContract
     // incrementEach
     // decrement
     // decrementEach
-    // delete
+
+    /**
+     * @return int
+     */
+    public function delete($id = null)
+    {
+        // If an ID is passed to the method, we will set the where clause to check the
+        // ID to let developers to simply and quickly remove a single row from this
+        // database without manually specifying the "where" clauses on the query.
+        if (! is_null($id)) {
+            $this->where($this->from . '.id', '=', $id);
+        }
+
+        $this->applyBeforeQueryCallbacks();
+
+        $table = $this->grammar->wrap($this->getFrom()->getTable());
+
+        $cluster = '';
+        if (! is_null($this->getOnCluster())) {
+            $cluster = " ON CLUSTER {$this->getOnCluster()}";
+        }
+
+        $where = $this->grammar->compileWheresComponent($this, $this->getWheres());
+
+        $sql = <<<SQL
+ALTER TABLE {$table} {$cluster} DELETE {$where};
+SQL;
+
+        return $this->connection->statement($sql) ? 1 : 0;
+    }
+
     // truncate
 
     public function newQuery(): self
