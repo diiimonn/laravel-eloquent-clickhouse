@@ -7,7 +7,11 @@ namespace One23\LaravelClickhouse\Database\Query;
 use BackedEnum;
 use Closure;
 use Illuminate\Contracts\Database\Query\Builder as BuilderContract;
+use Illuminate\Database\Concerns\BuildsQueries;
+use Illuminate\Database\Concerns\ExplainsQueries;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Traits\ForwardsCalls;
@@ -15,13 +19,17 @@ use Illuminate\Support\Traits\Macroable;
 use InvalidArgumentException;
 use One23\LaravelClickhouse\Database\Connection;
 use One23\LaravelClickhouse\Database\Eloquent\Builder as EloquentBuilder;
+use One23\LaravelClickhouse\Database\Query\Grammars\Grammar;
 use Tinderbox\ClickhouseBuilder\Integrations\Laravel\Builder as BaseBuilder;
 use Tinderbox\ClickhouseBuilder\Query\Enums\Operator;
 use Tinderbox\ClickhouseBuilder\Query\Expression;
+use Tinderbox\ClickhouseBuilder\Query\Limit;
 use UnitEnum;
 
 class Builder extends BaseBuilder implements BuilderContract
 {
+    use BuildsQueries;
+    use ExplainsQueries;
     use ForwardsCalls;
     use Macroable {
         __call as macroCall;
@@ -45,10 +53,35 @@ class Builder extends BaseBuilder implements BuilderContract
 
     public $distinct = false;
 
+    /** @var int */
+    public $limit;
+
+    /** @var int */
+    public $offset;
+
+    /** @var array */
+    public $unions;
+
+    /** @var int */
+    public $unionLimit;
+
+    /** @var int */
+    public $unionOffset;
+
     /** @var array */
     public $unionOrders;
 
+    public $beforeQueryCallbacks = [];
+
+    protected $afterQueryCallbacks = [];
+
     public $useWritePdo = false;
+
+    //
+
+    protected ?Limit $baseLimit = null;
+
+    //
 
     public function __construct(
         Connection $connection,
@@ -256,18 +289,66 @@ class Builder extends BaseBuilder implements BuilderContract
     // oldest
     // inRandomOrder
     // orderByRaw
-    // skip
-    // offset
-    // take
-    // limit
+
+    public function skip($value)
+    {
+        return $this->offset($value);
+    }
+
+    public function offset($value)
+    {
+        $property = $this->unions ? 'unionOffset' : 'offset';
+
+        $this->$property = max(0, (int)$value);
+
+        //
+
+        if ($property === 'offset') {
+            if (
+                ($this->limit ?? 0) > 0
+            ) {
+                $this->baseLimit = new Limit(
+                    $this->limit,
+                    $value
+                );
+            } else {
+                $this->baseLimit = null;
+            }
+        }
+
+        return $this;
+    }
+
+    final public function take(int $limit, ?int $offset = null)
+    {
+        return $this->limit($limit, $offset);
+    }
+
+    public function limit(int $value, ?int $offset = null)
+    {
+        $property = $this->unions ? 'unionLimit' : 'limit';
+
+        if ($value >= 0) {
+            $this->$property = ! is_null($value) ? (int)$value : null;
+        }
+
+        if ($property === 'limit') {
+            $this->baseLimit = new Limit(
+                $value,
+                ! is_null($offset)
+                    ? $offset
+                    : $this->offset
+            );
+        }
+
+        return $this;
+    }
+
     // groupLimit
 
     public function forPage($page, $perPage = 15)
     {
-        return $this->limit(
-            $perPage,
-            ($page - 1) * $perPage
-        );
+        return $this->offset(($page - 1) * $perPage)->limit($perPage);
     }
 
     public function forPageBeforeId($perPage = 15, $lastId = 0, $column = 'id')
@@ -322,12 +403,53 @@ class Builder extends BaseBuilder implements BuilderContract
     // lock
     // lockForUpdate
     // sharedLock
-    // beforeQuery
-    // applyBeforeQueryCallbacks
-    // afterQuery
-    // applyAfterQueryCallbacks
-    // toSql
-    // toRawSql
+
+    public function beforeQuery(callable $callback)
+    {
+        $this->beforeQueryCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    public function applyBeforeQueryCallbacks()
+    {
+        foreach ($this->beforeQueryCallbacks as $callback) {
+            $callback($this);
+        }
+
+        $this->beforeQueryCallbacks = [];
+    }
+
+    public function afterQuery(Closure $callback)
+    {
+        $this->afterQueryCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    public function applyAfterQueryCallbacks($result)
+    {
+        foreach ($this->afterQueryCallbacks as $afterQueryCallback) {
+            $result = $afterQueryCallback($result) ?: $result;
+        }
+
+        return $result;
+    }
+
+    public function toSql(): string
+    {
+        $this->applyBeforeQueryCallbacks();
+
+        return $this->grammar->compileSelect($this);
+    }
+
+    public function toRawSql()
+    {
+        return $this->grammar->substituteBindingsIntoRawSql(
+            $this->toSql(), $this->connection->prepareBindings($this->getBindings())
+        );
+    }
+
     // find
     // findOr
     // value
@@ -343,8 +465,35 @@ class Builder extends BaseBuilder implements BuilderContract
 
     // runSelect
     // withoutGroupLimitKeys
-    // paginate
-    // simplePaginate
+
+    public function paginate($perPage = 15, $columns = ['*'], $pageName = 'page', $page = null, $total = null): LengthAwarePaginator
+    {
+        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+
+        $total = value($total) ?? $this->getCountForPagination();
+
+        $perPage = $perPage instanceof Closure ? $perPage($total) : $perPage;
+
+        $results = $total ? $this->forPage($page, $perPage)->get($columns) : collect();
+
+        return $this->paginator($results, $total, $perPage, $page, [
+            'path' => Paginator::resolveCurrentPath(),
+            'pageName' => $pageName,
+        ]);
+    }
+
+    public function simplePaginate($perPage = 15, $columns = ['*'], $pageName = 'page', $page = null)
+    {
+        $page = $page ?: Paginator::resolveCurrentPage($pageName);
+
+        $this->offset(($page - 1) * $perPage)->limit($perPage + 1);
+
+        return $this->simplePaginator($this->get($columns), $perPage, $page, [
+            'path' => Paginator::resolveCurrentPath(),
+            'pageName' => $pageName,
+        ]);
+    }
+
     // cursorPaginate
     // ensureOrderForCursorPagination
 
@@ -683,9 +832,10 @@ class Builder extends BaseBuilder implements BuilderContract
             return $this->macroCall($method, $parameters);
         }
 
-        if (str_starts_with($method, 'where')) {
-            return $this->dynamicWhere($method, $parameters);
-        }
+        // todo
+        //        if (str_starts_with($method, 'where')) {
+        //            return $this->dynamicWhere($method, $parameters);
+        //        }
 
         static::throwBadMethodCallException($method);
     }
@@ -715,6 +865,13 @@ class Builder extends BaseBuilder implements BuilderContract
             : [];
     }
 
+    public function getUnions(): array
+    {
+        return ! empty($this->unions)
+            ? $this->unions
+            : [];
+    }
+
     public function first($columns = ['*'])
     {
         return $this->take(1)->get($columns)->first();
@@ -728,5 +885,10 @@ class Builder extends BaseBuilder implements BuilderContract
     protected function grammar__columnize(array $columns)
     {
         return implode(', ', array_map([$this->grammar, 'wrap'], $columns));
+    }
+
+    public function getLimit(): ?Limit
+    {
+        return $this->baseLimit;
     }
 }
