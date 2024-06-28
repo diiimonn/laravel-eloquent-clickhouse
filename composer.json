@@ -1,0 +1,62 @@
+{
+  "name": "one23/laravel-clickhouse",
+  "type": "library",
+  "homepage": "https://github.com/FlexIDK/laravel-clickhouse",
+  "description": "Laravel Clickhouse Eloquent",
+  "keywords": [
+    "laravel", "clickhouse", "eloquent"
+  ],
+  "license": "MIT",
+  "version": "v0.1",
+  "authors": [
+  ],
+  "require": {
+    "the-tinderbox/clickhouse-builder": "6.1.0"
+  },
+  "require-dev": {
+    "php" : "^8.2|^8.3",
+    "illuminate/contracts": "^v10|^v11",
+    "illuminate/support": "^v10|^v11",
+    "illuminate/database": "^v10|^v11",
+    "illuminate/pagination": "^v10|^v11",
+    "phpunit/phpunit": "^v10|^v11",
+    "phpstan/phpstan": "^1.4.7",
+    "laravel/pint": "^v1.6",
+    "symfony/var-dumper": "*"
+  },
+  "_require-dev": {
+    "illuminate/events": "*",
+    "illuminate/config": "*"
+  },
+  "suggest": {
+    "laravel/framework": "^v10|^v11"
+  },
+  "scripts": {
+    "test": [
+      "phpunit"
+    ],
+    "pint": "./vendor/laravel/pint/builds/pint",
+    "phpstan": "./vendor/bin/phpstan analyse --memory-limit=2G",
+    "code-quality": [
+      "@pint",
+      "@phpstan"
+    ]
+  },
+  "autoload": {
+    "psr-4": {
+      "One23\\LaravelClickhouse\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "One23\\LaravelClickhouse\\ClickhouseServiceProvider"
+      ]
+    }
+  }
+}
