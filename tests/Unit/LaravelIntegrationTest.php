@@ -24,21 +24,21 @@ use Tests\Server;
 use Tests\ServerProvider;
 use Tests\TransportInterface;
 
-//use Tinderbox\Clickhouse\Client;
-//use Tinderbox\Clickhouse\Common\FileFromString;
-//use Tinderbox\Clickhouse\Interfaces\TransportInterface;
-//use Tinderbox\Clickhouse\Query;
-//use Tinderbox\Clickhouse\Query\QueryStatistic;
-//use Tinderbox\Clickhouse\Query\Result;
-//use Tinderbox\Clickhouse\Server;
-//use Tinderbox\Clickhouse\ServerProvider;
-//use Tinderbox\Clickhouse\Transport\HttpTransport;
-//use Tinderbox\ClickhouseBuilder\Exceptions\BuilderException;
-//use Tinderbox\ClickhouseBuilder\Exceptions\NotSupportedException;
-//use Tinderbox\ClickhouseBuilder\Integrations\Laravel\Builder;
-//use Tinderbox\ClickhouseBuilder\Integrations\Laravel\ClickhouseServiceProvider;
-//use Tinderbox\ClickhouseBuilder\Integrations\Laravel\Connection;
-//use Tinderbox\ClickhouseBuilder\Query\Expression;
+// use Tinderbox\Clickhouse\Client;
+// use Tinderbox\Clickhouse\Common\FileFromString;
+// use Tinderbox\Clickhouse\Interfaces\TransportInterface;
+// use Tinderbox\Clickhouse\Query;
+// use Tinderbox\Clickhouse\Query\QueryStatistic;
+// use Tinderbox\Clickhouse\Query\Result;
+// use Tinderbox\Clickhouse\Server;
+// use Tinderbox\Clickhouse\ServerProvider;
+// use Tinderbox\Clickhouse\Transport\HttpTransport;
+// use Tinderbox\ClickhouseBuilder\Exceptions\BuilderException;
+// use Tinderbox\ClickhouseBuilder\Exceptions\NotSupportedException;
+// use Tinderbox\ClickhouseBuilder\Integrations\Laravel\Builder;
+// use Tinderbox\ClickhouseBuilder\Integrations\Laravel\ClickhouseServiceProvider;
+// use Tinderbox\ClickhouseBuilder\Integrations\Laravel\Connection;
+// use Tinderbox\ClickhouseBuilder\Query\Expression;
 
 class LaravelIntegrationTest extends TestCase
 {
@@ -521,10 +521,10 @@ class LaravelIntegrationTest extends TestCase
         $connection = new Connection($this->getSimpleConfig());
 
         $server = new Server('127.0.0.2');
-        $serverProvider = new ServerProvider();
+        $serverProvider = new ServerProvider;
         $serverProvider->addServer($server);
 
-        $transport = new HttpTransport(new \GuzzleHttp\Client());
+        $transport = new HttpTransport(new \GuzzleHttp\Client);
 
         $client = new Client($serverProvider, $transport);
         $connection->setClient($client);
@@ -537,7 +537,7 @@ class LaravelIntegrationTest extends TestCase
         $connection = new Connection($this->getSimpleConfig());
 
         $server = new Server('127.0.0.1');
-        $serverProvider = new ServerProvider();
+        $serverProvider = new ServerProvider;
         $serverProvider->addServer($server);
 
         $transport = $this->createMock(TransportInterface::class);

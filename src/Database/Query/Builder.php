@@ -92,7 +92,7 @@ class Builder extends BaseBuilder implements BuilderContract
         ?Grammar $grammar = null
     ) {
         $this->connection = $connection;
-        $this->grammar = $grammar ?: new Grammar();
+        $this->grammar = $grammar ?: new Grammar;
     }
 
     //
@@ -1015,4 +1015,5 @@ SQL;
     {
         return $this->baseLimit;
     }
+
 }

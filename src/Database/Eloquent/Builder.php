@@ -8,7 +8,7 @@ use Exception;
 use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Concerns\BuildsQueries;
-use Illuminate\Database\Eloquent\Collection as Collection;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\RelationNotFoundException;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -17,7 +17,6 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Support\Traits\ForwardsCalls;
-use One23\LaravelClickhouse\Database\Eloquent\Model as Model;
 use One23\LaravelClickhouse\Database\Query\Builder as ClickhouseQueryBuilder;
 use ReflectionClass;
 use ReflectionMethod;
@@ -1219,5 +1218,15 @@ class Builder implements BuilderContract
     public function __clone()
     {
         $this->query = clone $this->query;
+    }
+
+    public function getOffset()
+    {
+        return $this->query->getLimit()?->getOffset();
+    }
+
+    public function getLimit()
+    {
+        return $this->query->getLimit()?->getLimit();
     }
 }
