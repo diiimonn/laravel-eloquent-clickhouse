@@ -1015,5 +1015,4 @@ SQL;
     {
         return $this->baseLimit;
     }
-
 }
