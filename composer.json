@@ -1,5 +1,5 @@
 {
-  "name": "one23/laravel-clickhouse",
+  "name": "diiimonn/laravel-eloquent-clickhouse",
   "type": "library",
   "homepage": "https://github.com/FlexIDK/laravel-clickhouse",
   "description": "Laravel Clickhouse Eloquent",
