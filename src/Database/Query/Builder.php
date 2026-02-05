@@ -381,18 +381,18 @@ class Builder extends BaseBuilder implements BuilderContract
     /**
      * Add a raw where clause to the query.
      *
-     * @param  string  $sql
-     * @param  mixed  $bindings
+     * @param  string  $expression
+     * @param  array  $bindings
      * @param  string  $boolean
      * @return $this
      */
-    public function whereRaw($sql, $bindings = [], $boolean = 'AND')
+    public function whereRaw(string $expression, array $bindings = [], string $boolean = 'AND')
     {
         // Substitute ? placeholders with actual values for ClickHouse
         if (! empty($bindings)) {
             $bindings = Arr::flatten($bindings);
             $index = 0;
-            $sql = preg_replace_callback('/\?/', function () use ($bindings, &$index) {
+            $expression = preg_replace_callback('/\?/', function () use ($bindings, &$index) {
                 $value = $bindings[$index++] ?? null;
                 if (is_null($value)) {
                     return 'NULL';
@@ -404,22 +404,22 @@ class Builder extends BaseBuilder implements BuilderContract
                     return $value ? '1' : '0';
                 }
                 return (string) $value;
-            }, $sql);
+            }, $expression);
         }
 
-        return $this->where(new Expression($sql), null, null, $boolean);
+        return $this->where(new Expression($expression), null, null, $boolean);
     }
 
     /**
      * Add a raw or where clause to the query.
      *
-     * @param  string  $sql
-     * @param  mixed  $bindings
+     * @param  string  $expression
+     * @param  array  $bindings
      * @return $this
      */
-    public function orWhereRaw($sql, $bindings = [])
+    public function orWhereRaw(string $expression, array $bindings = [])
     {
-        return $this->whereRaw($sql, $bindings, 'OR');
+        return $this->whereRaw($expression, $bindings, 'OR');
     }
 
     /**
@@ -489,11 +489,12 @@ class Builder extends BaseBuilder implements BuilderContract
      *
      * @param  string  $column
      * @param  mixed  $values
+     * @param  string  $boolean
      * @return $this
      */
-    public function orWhereNotIn($column, $values)
+    public function orWhereNotIn($column, $values, $boolean = Operator::OR)
     {
-        return $this->whereNotIn($column, $values, Operator::OR);
+        return $this->whereNotIn($column, $values, $boolean);
     }
 
     // whereIntegerInRaw
@@ -538,9 +539,8 @@ class Builder extends BaseBuilder implements BuilderContract
     /**
      * Add a "where between" statement to the query.
      */
-    public function whereBetween($column, iterable $values, $boolean = 'AND', $not = false)
+    public function whereBetween($column, array $values, $boolean = Operator::AND, $not = false)
     {
-        $values = is_array($values) ? $values : iterator_to_array($values);
         $operator = $not ? Operator::NOT_BETWEEN : Operator::BETWEEN;
 
         return $this->where($column, $operator, array_slice($values, 0, 2), $boolean);
@@ -549,15 +549,15 @@ class Builder extends BaseBuilder implements BuilderContract
     /**
      * Add an "or where between" statement to the query.
      */
-    public function orWhereBetween($column, iterable $values)
+    public function orWhereBetween($column, array $values)
     {
-        return $this->whereBetween($column, $values, 'OR');
+        return $this->whereBetween($column, $values, Operator::OR);
     }
 
     /**
      * Add a "where not between" statement to the query.
      */
-    public function whereNotBetween($column, iterable $values, $boolean = 'AND')
+    public function whereNotBetween($column, array $values, $boolean = Operator::AND)
     {
         return $this->whereBetween($column, $values, $boolean, true);
     }
@@ -565,9 +565,9 @@ class Builder extends BaseBuilder implements BuilderContract
     /**
      * Add an "or where not between" statement to the query.
      */
-    public function orWhereNotBetween($column, iterable $values)
+    public function orWhereNotBetween($column, array $values)
     {
-        return $this->whereNotBetween($column, $values, 'OR');
+        return $this->whereNotBetween($column, $values, Operator::OR);
     }
 
     /**
