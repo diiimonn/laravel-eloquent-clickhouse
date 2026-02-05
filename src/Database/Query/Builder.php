@@ -744,7 +744,7 @@ class Builder extends BaseBuilder implements BuilderContract
         if ($this->groups || $this->havings) {
             $clone = $this->cloneForPaginationCount();
 
-            if (is_null($clone->columns) && ! empty($this->joins)) {
+            if (empty($clone->columns) && ! empty($this->joins)) {
                 $clone->select($this->from . '.*');
             }
 
@@ -1363,12 +1363,16 @@ SQL;
 
     public function cloneWithout(array $properties)
     {
-        return tap($this->clone(), function($clone) use ($properties) {
-            foreach ($properties as $property) {
-                if (is_array($clone->{$property})) {
-                    $clone->{$property} = [];
+        return tap($this->clone(), function ($clone) use ($properties) {
+            foreach ($properties as $key => $value) {
+                // Support both formats:
+                // ['columns', 'orders'] - numeric keys, set to default
+                // ['columns' => [], 'limit' => null] - associative, set to specified value
+                if (is_int($key)) {
+                    $property = $value;
+                    $clone->{$property} = is_array($clone->{$property}) ? [] : null;
                 } else {
-                    $clone->{$property} = null;
+                    $clone->{$key} = $value;
                 }
             }
         });
@@ -1464,7 +1468,14 @@ SQL;
 
     public function getCountQuery($column = '*')
     {
-        return parent::getCountQuery();
+        $without = ['columns' => [], 'limit' => null, 'offset' => null, 'baseLimit' => null];
+
+        if (empty($this->groups)) {
+            $without['orders'] = [];
+        }
+
+        return $this->cloneWithout($without)
+            ->selectRaw('count(' . ($column === '*' ? '*' : $this->grammar->wrap($column)) . ') as `count`');
     }
 
     protected function grammar__columnize(array $columns)
