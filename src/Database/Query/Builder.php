@@ -56,6 +56,8 @@ class Builder extends BaseBuilder implements BuilderContract
 
     public $distinct = false;
 
+    public $columns = [];
+
     /** @var int */
     public $limit;
 
@@ -111,6 +113,25 @@ class Builder extends BaseBuilder implements BuilderContract
 
         if ($bindings) {
             $this->addBinding($bindings, 'select');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Force the query to only return distinct results.
+     *
+     * @param  mixed  ...$distinct
+     * @return $this
+     */
+    public function distinct($distinct = true)
+    {
+        if (is_array($distinct)) {
+            $this->distinct = $distinct;
+        } else {
+            $this->distinct = func_num_args() > 1
+                ? func_get_args()
+                : (bool) $distinct;
         }
 
         return $this;
@@ -1344,7 +1365,11 @@ SQL;
     {
         return tap($this->clone(), function($clone) use ($properties) {
             foreach ($properties as $property) {
-                $clone->{$property} = null;
+                if (is_array($clone->{$property})) {
+                    $clone->{$property} = [];
+                } else {
+                    $clone->{$property} = null;
+                }
             }
         });
     }
