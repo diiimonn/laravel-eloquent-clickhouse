@@ -1285,6 +1285,88 @@ class Builder extends BaseBuilder implements BuilderContract
     }
 
     /**
+     * Concatenate values of a given column as a string.
+     *
+     * @param  string  $column
+     * @param  string  $glue
+     * @return string
+     */
+    public function implode($column, $glue = '')
+    {
+        return $this->pluck($column)->implode($glue);
+    }
+
+    /**
+     * Get a single column's value from the first result of a query if it's the sole matching record.
+     *
+     * @param  string  $column
+     * @return mixed
+     */
+    public function soleValue($column)
+    {
+        $result = $this->sole([$column]);
+
+        return $result ? data_get($result, $column) : null;
+    }
+
+    /**
+     * Execute the query and get the first result if it's the sole matching record.
+     *
+     * @param  array|string  $columns
+     * @return mixed
+     *
+     * @throws \Illuminate\Database\RecordsNotFoundException
+     * @throws \Illuminate\Database\MultipleRecordsFoundException
+     */
+    public function sole($columns = ['*'])
+    {
+        $result = $this->take(2)->get($columns);
+
+        $count = $result->count();
+
+        if ($count === 0) {
+            throw new \Illuminate\Database\RecordsNotFoundException();
+        }
+
+        if ($count > 1) {
+            throw new \Illuminate\Database\MultipleRecordsFoundException($count);
+        }
+
+        return $result->first();
+    }
+
+    /**
+     * Get a raw expression value from the first result of a query.
+     *
+     * @param  string  $expression
+     * @param  array  $bindings
+     * @return mixed
+     */
+    public function rawValue($expression, array $bindings = [])
+    {
+        $result = $this->selectRaw($expression, $bindings)->first();
+
+        if (! $result) {
+            return null;
+        }
+
+        $result = (array) $result;
+
+        return reset($result);
+    }
+
+    /**
+     * Create a raw database expression.
+     *
+     * @param  mixed  $value
+     * @return \Tinderbox\ClickhouseBuilder\Query\Expression
+     */
+    public function raw($value)
+    {
+        return new Expression($value);
+    }
+
+    /**
      * Chunk the results of the query.
      */
     public function chunk(int $count, callable $callback): bool

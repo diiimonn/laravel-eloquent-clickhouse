@@ -1231,20 +1231,10 @@ class Builder implements BuilderContract
         }
 
         if (in_array(strtolower($method), [
-            'dd',
-            'ddrawsql',
-            'dump',
-            'dumprawsql',
-            'explain',
-            'getgrammar',
-            'getrawbindings',
-            'implode',
             'insertgetid',
             'insertorignore',
             'insertusing',
             'insertorignoreusing',
-            'raw',
-            'rawvalue',
         ])) {
             throw NotSupportedException::queryBuilderMethod($method);
         }
