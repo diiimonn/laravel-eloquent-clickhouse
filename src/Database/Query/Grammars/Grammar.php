@@ -11,6 +11,13 @@ class Grammar extends BaseGrammar
 {
     protected $connection = null;
 
+    public function setConnection($connection)
+    {
+        $this->connection = $connection;
+
+        return $this;
+    }
+
     public function escape($value, $binary = false)
     {
         if (is_null($this->connection)) {

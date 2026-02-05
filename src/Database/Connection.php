@@ -97,4 +97,56 @@ class Connection extends \Tinderbox\ClickhouseBuilder\Integrations\Laravel\Conne
     {
         throw NotSupportedException::transactions();
     }
+
+    /**
+     * Escape a value for safe SQL embedding.
+     *
+     * @param  mixed  $value
+     * @param  bool  $binary
+     * @return string
+     */
+    public function escape($value, $binary = false)
+    {
+        if (is_null($value)) {
+            return 'NULL';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            return '[' . implode(', ', array_map([$this, 'escape'], $value)) . ']';
+        }
+
+        // String escaping for ClickHouse
+        // Escape backslashes first, then single quotes
+        $value = str_replace('\\', '\\\\', (string) $value);
+        $value = str_replace("'", "\\'", $value);
+
+        return "'" . $value . "'";
+    }
+
+    /**
+     * Prepare the query bindings for execution.
+     *
+     * @param  array  $bindings
+     * @return array
+     */
+    public function prepareBindings(array $bindings)
+    {
+        foreach ($bindings as $key => $value) {
+            if ($value instanceof \DateTimeInterface) {
+                $bindings[$key] = $value->format($this->getQueryGrammar()->getDateFormat());
+            } elseif (is_bool($value)) {
+                $bindings[$key] = (int) $value;
+            }
+        }
+
+        return $bindings;
+    }
 }

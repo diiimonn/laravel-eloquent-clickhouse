@@ -97,6 +97,7 @@ class Builder extends BaseBuilder implements BuilderContract
     ) {
         $this->connection = $connection;
         $this->grammar = $grammar ?: new Grammar;
+        $this->grammar->setConnection($connection);
     }
 
     //
