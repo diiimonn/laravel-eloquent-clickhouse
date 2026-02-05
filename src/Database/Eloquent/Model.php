@@ -31,6 +31,8 @@ use Illuminate\Support\Traits\ForwardsCalls;
 use JsonException;
 use JsonSerializable;
 use LogicException;
+use One23\LaravelClickhouse\Database\Eloquent\Relations;
+use One23\LaravelClickhouse\Exceptions\NotSupportedException;
 use ReflectionMethod;
 use Stringable;
 
@@ -2024,7 +2026,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function setIncrementing($value)
     {
-        throw new \Exception('Is not supported on Clickhouse models.');
+        throw NotSupportedException::incrementing();
     }
 
     /**
@@ -2436,7 +2438,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         ];
 
         if (in_array($method, $methods)) {
-            dd("Method [{$method}] is not supported on Clickhouse models.");
+            throw NotSupportedException::method($method, 'ClickHouse');
         }
 
         //
@@ -2528,6 +2530,91 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     //
     //
     //
+
+    /**
+     * Define a one-to-many relationship.
+     *
+     * @param  string  $related
+     * @param  string|null  $foreignKey
+     * @param  string|null  $localKey
+     * @return \One23\LaravelClickhouse\Database\Eloquent\Relations\HasMany
+     */
+    public function hasMany(string $related, ?string $foreignKey = null, ?string $localKey = null): Relations\HasMany
+    {
+        $instance = $this->newRelatedInstance($related);
+
+        $foreignKey = $foreignKey ?: $this->getForeignKey();
+
+        $localKey = $localKey ?: $this->getKeyName();
+
+        return new Relations\HasMany(
+            $instance->newQuery(), $this, $instance->getTable().'.'.$foreignKey, $localKey
+        );
+    }
+
+    /**
+     * Define an inverse one-to-one or many relationship.
+     *
+     * @param  string  $related
+     * @param  string|null  $foreignKey
+     * @param  string|null  $ownerKey
+     * @param  string|null  $relation
+     * @return \One23\LaravelClickhouse\Database\Eloquent\Relations\BelongsTo
+     */
+    public function belongsTo(string $related, ?string $foreignKey = null, ?string $ownerKey = null, ?string $relation = null): Relations\BelongsTo
+    {
+        // If no relation name was given, we will use this debug backtrace to extract
+        // the calling method's name and use that as the relationship name as most
+        // of the time this will be what we desire to use for the relationships.
+        if (is_null($relation)) {
+            $relation = $this->guessBelongsToRelation();
+        }
+
+        $instance = $this->newRelatedInstance($related);
+
+        // If no foreign key was supplied, we can use a backtrace to guess the proper
+        // foreign key name by using the name of the relationship function, which
+        // when combined with an "_id" should conventionally match the columns.
+        if (is_null($foreignKey)) {
+            $foreignKey = Str::snake($relation).'_'.$instance->getKeyName();
+        }
+
+        // Once we have the foreign key names we'll just create a new Eloquent query
+        // for the related models and return the relationship instance which will
+        // actually be responsible for retrieving and hydrating every relation.
+        $ownerKey = $ownerKey ?: $instance->getKeyName();
+
+        return new Relations\BelongsTo(
+            $instance->newQuery(), $this, $foreignKey, $ownerKey, $relation
+        );
+    }
+
+    /**
+     * Guess the "belongs to" relationship name.
+     *
+     * @return string
+     */
+    protected function guessBelongsToRelation(): string
+    {
+        [$one, $two, $caller] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+
+        return $caller['function'];
+    }
+
+    /**
+     * Create a new model instance for a related model.
+     *
+     * @param  string  $class
+     * @return \One23\LaravelClickhouse\Database\Eloquent\Model
+     */
+    protected function newRelatedInstance(string $class): Model
+    {
+        return tap(new $class, function ($instance) {
+            if (! $instance->getConnectionName()) {
+                $instance->setConnection($this->connection);
+            }
+        });
+    }
 
     protected function fillableFromArray(array $attributes)
     {

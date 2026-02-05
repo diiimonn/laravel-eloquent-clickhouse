@@ -14,7 +14,9 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\LazyCollection;
 use Illuminate\Support\Traits\ForwardsCalls;
+use RuntimeException;
 use Illuminate\Support\Traits\Macroable;
 use InvalidArgumentException;
 use One23\LaravelClickhouse\Database\Connection;
@@ -240,60 +242,208 @@ class Builder extends BaseBuilder implements BuilderContract
         return $this->whereNull($columns, $boolean, true);
     }
 
-    // whereBetween
-    // whereBetweenColumns
-    // orWhereBetween
-    // orWhereBetweenColumns
-    // whereNotBetween
-    // whereNotBetweenColumns
-    // orWhereNotBetween
-    // orWhereNotBetweenColumns
-    // orWhereNotNull
-    // whereDate
-    // orWhereDate
-    // whereTime
-    // orWhereTime
-    // whereDay
-    // orWhereDay
-    // whereMonth
-    // orWhereMonth
-    // whereYear
-    // orWhereYear
-    // addDateBasedWhere
-    // whereNested
-    // forNestedWhere
-    // addNestedWhereQuery
-    // whereSub
-    // whereExists
-    // orWhereExists
-    // whereNotExists
-    // orWhereNotExists
-    // addWhereExistsQuery
-    // whereRowValues
-    // orWhereRowValues
-    // whereJsonContains
-    // orWhereJsonContains
-    // whereJsonDoesntContain
-    // orWhereJsonDoesntContain
-    // whereJsonOverlaps
-    // orWhereJsonOverlaps
-    // whereJsonDoesntOverlap
-    // orWhereJsonDoesntOverlap
-    // whereJsonContainsKey
-    // orWhereJsonContainsKey
-    // whereJsonDoesntContainKey
-    // orWhereJsonDoesntContainKey
-    // whereJsonLength
-    // orWhereJsonLength
-    // dynamicWhere
-    // addDynamic
-    // whereFullText
-    // orWhereFullText
-    // whereAll
-    // orWhereAll
-    // whereAny
-    // orWhereAny
-    // groupBy
+    /**
+     * Add an "or where not null" clause to the query.
+     */
+    public function orWhereNotNull($column)
+    {
+        return $this->whereNotNull($column, 'OR');
+    }
+
+    /**
+     * Add a "where between" statement to the query.
+     */
+    public function whereBetween($column, iterable $values, $boolean = 'AND', $not = false)
+    {
+        $values = is_array($values) ? $values : iterator_to_array($values);
+        $type = $not ? 'NOT BETWEEN' : 'BETWEEN';
+
+        $this->whereRaw(
+            $this->grammar->wrap($column) . " {$type} ? AND ?",
+            array_slice($values, 0, 2)
+        );
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where between" statement to the query.
+     */
+    public function orWhereBetween($column, iterable $values)
+    {
+        return $this->whereBetween($column, $values, 'OR');
+    }
+
+    /**
+     * Add a "where not between" statement to the query.
+     */
+    public function whereNotBetween($column, iterable $values, $boolean = 'AND')
+    {
+        return $this->whereBetween($column, $values, $boolean, true);
+    }
+
+    /**
+     * Add an "or where not between" statement to the query.
+     */
+    public function orWhereNotBetween($column, iterable $values)
+    {
+        return $this->whereNotBetween($column, $values, 'OR');
+    }
+
+    /**
+     * Add a "where date" statement to the query (ClickHouse uses toDate function).
+     */
+    public function whereDate($column, $operator, $value = null, $boolean = 'AND')
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        $value = $this->flattenValue($value);
+
+        $this->whereRaw(
+            "toDate({$this->grammar->wrap($column)}) {$operator} ?",
+            [$value]
+        );
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where date" statement to the query.
+     */
+    public function orWhereDate($column, $operator, $value = null)
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->whereDate($column, $operator, $value, 'OR');
+    }
+
+    /**
+     * Add a "where year" statement to the query (ClickHouse uses toYear function).
+     */
+    public function whereYear($column, $operator, $value = null, $boolean = 'AND')
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        $value = $this->flattenValue($value);
+
+        $this->whereRaw(
+            "toYear({$this->grammar->wrap($column)}) {$operator} ?",
+            [(int) $value]
+        );
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where year" statement to the query.
+     */
+    public function orWhereYear($column, $operator, $value = null)
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->whereYear($column, $operator, $value, 'OR');
+    }
+
+    /**
+     * Add a "where month" statement to the query (ClickHouse uses toMonth function).
+     */
+    public function whereMonth($column, $operator, $value = null, $boolean = 'AND')
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        $value = $this->flattenValue($value);
+
+        $this->whereRaw(
+            "toMonth({$this->grammar->wrap($column)}) {$operator} ?",
+            [(int) $value]
+        );
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where month" statement to the query.
+     */
+    public function orWhereMonth($column, $operator, $value = null)
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->whereMonth($column, $operator, $value, 'OR');
+    }
+
+    /**
+     * Add a "where day" statement to the query (ClickHouse uses toDayOfMonth function).
+     */
+    public function whereDay($column, $operator, $value = null, $boolean = 'AND')
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        $value = $this->flattenValue($value);
+
+        $this->whereRaw(
+            "toDayOfMonth({$this->grammar->wrap($column)}) {$operator} ?",
+            [(int) $value]
+        );
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where day" statement to the query.
+     */
+    public function orWhereDay($column, $operator, $value = null)
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->whereDay($column, $operator, $value, 'OR');
+    }
+
+    /**
+     * Add a "where time" statement to the query (ClickHouse uses toTime function).
+     */
+    public function whereTime($column, $operator, $value = null, $boolean = 'AND')
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        $value = $this->flattenValue($value);
+
+        $this->whereRaw(
+            "toTime({$this->grammar->wrap($column)}) {$operator} ?",
+            [$value]
+        );
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where time" statement to the query.
+     */
+    public function orWhereTime($column, $operator, $value = null)
+    {
+        [$value, $operator] = $this->prepareValueAndOperator(
+            $value, $operator, func_num_args() === 2
+        );
+
+        return $this->whereTime($column, $operator, $value, 'OR');
+    }
 
     public function groupByRaw($sql, array $bindings = [])
     {
@@ -630,13 +780,299 @@ class Builder extends BaseBuilder implements BuilderContract
         return (int)($result[0]['count'] ?? 0);
     }
 
-    // min
-    // max
-    // sum
-    // avg
-    // average
-    // aggregate
-    // numericAggregate
+    /**
+     * Retrieve the minimum value of a given column.
+     */
+    public function min($column): mixed
+    {
+        return $this->aggregate(__FUNCTION__, [$column]);
+    }
+
+    /**
+     * Retrieve the maximum value of a given column.
+     */
+    public function max($column): mixed
+    {
+        return $this->aggregate(__FUNCTION__, [$column]);
+    }
+
+    /**
+     * Retrieve the sum of the values of a given column.
+     */
+    public function sum($column): mixed
+    {
+        $result = $this->aggregate(__FUNCTION__, [$column]);
+
+        return $result ?: 0;
+    }
+
+    /**
+     * Retrieve the average of the values of a given column.
+     */
+    public function avg($column): mixed
+    {
+        return $this->aggregate(__FUNCTION__, [$column]);
+    }
+
+    /**
+     * Alias for the "avg" method.
+     */
+    public function average($column): mixed
+    {
+        return $this->avg($column);
+    }
+
+    /**
+     * Execute an aggregate function on the database.
+     */
+    public function aggregate(string $function, array $columns = ['*']): mixed
+    {
+        $results = $this->cloneWithout($this->unions ? [] : ['columns'])
+            ->cloneWithoutBindings($this->unions ? [] : ['select'])
+            ->setAggregate($function, $columns)
+            ->get($columns);
+
+        if (! $results->isEmpty()) {
+            return array_change_key_case((array) $results[0])['aggregate'];
+        }
+
+        return null;
+    }
+
+    /**
+     * Execute a numeric aggregate function on the database.
+     */
+    public function numericAggregate(string $function, array $columns = ['*']): int|float
+    {
+        $result = $this->aggregate($function, $columns);
+
+        if (! $result) {
+            return 0;
+        }
+
+        if (is_int($result) || is_float($result)) {
+            return $result;
+        }
+
+        return str_contains((string) $result, '.') ? (float) $result : (int) $result;
+    }
+
+    /**
+     * Determine if any rows exist for the current query.
+     */
+    public function exists(): bool
+    {
+        $this->applyBeforeQueryCallbacks();
+
+        $results = $this->limit(1)->get(['*']);
+
+        return $results->count() > 0;
+    }
+
+    /**
+     * Determine if no rows exist for the current query.
+     */
+    public function doesntExist(): bool
+    {
+        return ! $this->exists();
+    }
+
+    /**
+     * Execute the given callback if no rows exist for the current query.
+     */
+    public function existsOr(Closure $callback): mixed
+    {
+        return $this->exists() ? true : $callback();
+    }
+
+    /**
+     * Execute the given callback if rows exist for the current query.
+     */
+    public function doesntExistOr(Closure $callback): mixed
+    {
+        return $this->doesntExist() ? true : $callback();
+    }
+
+    /**
+     * Get a single column's value from the first result of a query.
+     */
+    public function value($column): mixed
+    {
+        $result = $this->first([$column]);
+
+        return $result ? data_get($result, $column) : null;
+    }
+
+    /**
+     * Get an array with the values of a given column.
+     */
+    public function pluck($column, $key = null): Collection
+    {
+        $queryResult = $this->get(is_null($key) ? [$column] : [$column, $key]);
+
+        return is_null($key)
+            ? $queryResult->pluck($column)
+            : $queryResult->pluck($column, $key);
+    }
+
+    /**
+     * Chunk the results of the query.
+     */
+    public function chunk(int $count, callable $callback): bool
+    {
+        $this->enforceOrderBy();
+
+        $page = 1;
+
+        do {
+            $results = $this->forPage($page, $count)->get();
+
+            $countResults = $results->count();
+
+            if ($countResults == 0) {
+                break;
+            }
+
+            if ($callback($results, $page) === false) {
+                return false;
+            }
+
+            unset($results);
+
+            $page++;
+        } while ($countResults == $count);
+
+        return true;
+    }
+
+    /**
+     * Chunk the results of a query by comparing IDs.
+     */
+    public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
+    {
+        $column = $column ?? $this->defaultKeyName();
+        $alias = $alias ?? $column;
+
+        $lastId = null;
+
+        do {
+            $clone = clone $this;
+
+            $results = $clone->forPageAfterId($count, $lastId, $column)->get();
+
+            $countResults = $results->count();
+
+            if ($countResults == 0) {
+                break;
+            }
+
+            if ($callback($results) === false) {
+                return false;
+            }
+
+            $lastId = data_get($results->last(), $alias);
+
+            if ($lastId === null) {
+                throw new RuntimeException("The chunkById operation was aborted because the [{$alias}] column is not present in the query result.");
+            }
+
+            unset($results);
+        } while ($countResults == $count);
+
+        return true;
+    }
+
+    /**
+     * Query lazily, by chunks of the given size.
+     */
+    public function lazy(int $chunkSize = 1000): LazyCollection
+    {
+        $this->enforceOrderBy();
+
+        return LazyCollection::make(function () use ($chunkSize) {
+            $page = 1;
+
+            while (true) {
+                $results = $this->forPage($page++, $chunkSize)->get();
+
+                foreach ($results as $result) {
+                    yield $result;
+                }
+
+                if ($results->count() < $chunkSize) {
+                    return;
+                }
+            }
+        });
+    }
+
+    /**
+     * Query lazily, by chunking the results of a query by comparing IDs.
+     */
+    public function lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
+    {
+        $column = $column ?? $this->defaultKeyName();
+        $alias = $alias ?? $column;
+
+        return LazyCollection::make(function () use ($chunkSize, $column, $alias) {
+            $lastId = null;
+
+            while (true) {
+                $clone = clone $this;
+
+                $results = $clone->forPageAfterId($chunkSize, $lastId, $column)->get();
+
+                foreach ($results as $result) {
+                    yield $result;
+                }
+
+                if ($results->count() < $chunkSize) {
+                    return;
+                }
+
+                $lastId = data_get($results->last(), $alias);
+            }
+        });
+    }
+
+    /**
+     * Query lazily, by chunking the results of a query by comparing IDs in descending order.
+     */
+    public function lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
+    {
+        $column = $column ?? $this->defaultKeyName();
+        $alias = $alias ?? $column;
+
+        return LazyCollection::make(function () use ($chunkSize, $column, $alias) {
+            $lastId = null;
+
+            while (true) {
+                $clone = clone $this;
+
+                $results = $clone->forPageBeforeId($chunkSize, $lastId, $column)->get();
+
+                foreach ($results as $result) {
+                    yield $result;
+                }
+
+                if ($results->count() < $chunkSize) {
+                    return;
+                }
+
+                $lastId = data_get($results->last(), $alias);
+            }
+        });
+    }
+
+    /**
+     * Throw an exception if the query doesn't have an orderBy clause.
+     */
+    protected function enforceOrderBy(): void
+    {
+        if (empty($this->orders) && empty($this->unionOrders)) {
+            throw new RuntimeException('You must specify an orderBy clause when using this function.');
+        }
+    }
 
     protected function setAggregate($function, $columns)
     {

@@ -6,6 +6,7 @@ use BadMethodCallException;
 use Closure;
 use Exception;
 use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
+use One23\LaravelClickhouse\Exceptions\NotSupportedException;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Concerns\BuildsQueries;
 use Illuminate\Database\Eloquent\Collection;
@@ -56,14 +57,23 @@ class Builder implements BuilderContract
     protected $passthru = [
         'insert',
         'toSql',
+        'toRawSql',
         'count',
+        'min',
+        'max',
+        'avg',
+        'average',
+        'sum',
+        'aggregate',
+        'numericAggregate',
+        'exists',
+        'doesntExist',
+        'existsOr',
+        'doesntExistOr',
         'getConnection',
-        //        'exists',
-        //        'getBindings',
-        //        'min',
-        //        'max',
-        //        'avg',
-        //        'sum',
+        'getBindings',
+        'value',
+        'pluck',
     ];
 
     /** @var array */
@@ -674,8 +684,7 @@ class Builder implements BuilderContract
                 // passing in the builder and the model instance. After we run all of these
                 // scopes we will return back the builder instance to the outside caller.
                 if ($scope instanceof Scope) {
-                    throw new Exception('Not implemented');
-                    //                    $scope->apply($builder, $this->getModel());
+                    throw NotSupportedException::scope();
                 }
             });
         }
@@ -922,6 +931,109 @@ class Builder implements BuilderContract
         return $this;
     }
 
+    /**
+     * Update records in the database.
+     *
+     * @return int
+     */
+    public function update(array $values)
+    {
+        return $this->toBase()->update($values);
+    }
+
+    /**
+     * Delete records from the database.
+     *
+     * @return int
+     */
+    public function delete()
+    {
+        if (isset($this->onDelete)) {
+            return call_user_func($this->onDelete, $this);
+        }
+
+        return $this->toBase()->delete();
+    }
+
+    /**
+     * Run the default delete function on the builder.
+     *
+     * Since we do not have soft deletes by default, this just calls delete.
+     *
+     * @return int
+     */
+    public function forceDelete()
+    {
+        return $this->toBase()->delete();
+    }
+
+    /**
+     * Register a replacement for the default delete function.
+     *
+     * @param  \Closure  $callback
+     * @return void
+     */
+    public function onDelete(Closure $callback): void
+    {
+        $this->onDelete = $callback;
+    }
+
+    /**
+     * Register a new global scope.
+     *
+     * @param  string  $identifier
+     * @param  \Illuminate\Database\Eloquent\Scope|\Closure  $scope
+     * @return $this
+     */
+    public function withGlobalScope(string $identifier, $scope)
+    {
+        $this->scopes[$identifier] = $scope;
+
+        if (method_exists($scope, 'extend')) {
+            $scope->extend($this);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Remove a registered global scope.
+     *
+     * @param  \Illuminate\Database\Eloquent\Scope|string  $scope
+     * @return $this
+     */
+    public function withoutGlobalScope($scope)
+    {
+        if (! is_string($scope)) {
+            $scope = get_class($scope);
+        }
+
+        unset($this->scopes[$scope]);
+
+        $this->removedScopes[] = $scope;
+
+        return $this;
+    }
+
+    /**
+     * Remove all or passed registered global scopes.
+     *
+     * @param  array|null  $scopes
+     * @return $this
+     */
+    public function withoutGlobalScopes(?array $scopes = null)
+    {
+        if (! is_array($scopes)) {
+            $scopes = array_keys($this->scopes);
+        }
+
+        foreach ($scopes as $scope) {
+            $this->withoutGlobalScope($scope);
+        }
+
+        return $this;
+    }
+
     public function getQuery(): ClickhouseQueryBuilder
     {
         return $this->query;
@@ -1037,7 +1149,7 @@ class Builder implements BuilderContract
             return $this->toBase()->{$key};
         }
 
-        throw new Exception("Property [{$key}] does not exist on the Eloquent builder instance.");
+        throw new BadMethodCallException("Property [{$key}] does not exist on the Eloquent builder instance.");
     }
 
     /**
@@ -1080,9 +1192,6 @@ class Builder implements BuilderContract
         }
 
         if (in_array(strtolower($method), [
-            'withglobalscope',
-            'withoutglobalscope',
-            'withoutglobalscopes',
             'wherenot',
             'orwherenot',
             'latest',
@@ -1101,7 +1210,6 @@ class Builder implements BuilderContract
             'create',
             'forcecreate',
             'forcecreatequietly',
-            'update',
             'upsert',
             'touch',
             'increment',
@@ -1110,8 +1218,6 @@ class Builder implements BuilderContract
             'adduniqueidstoupsertvalues',
             'addtimestampstoupsertvalues',
             'addupdatedattoupsertcolumns',
-            //            'delete',
-            'forcedelete',
             'ondelete',
             'preparenestedwithrelationships',
             'combineconstraints',
@@ -1121,42 +1227,26 @@ class Builder implements BuilderContract
             'qualifycolumn',
             'qualifycolumns',
         ])) {
-            throw new Exception("Method [{$method}] is not available on the Clickhouse Eloquent Builder instance.");
+            throw NotSupportedException::builderMethod($method);
         }
 
         if (in_array(strtolower($method), [
-            'aggregate',
-            'average',
-            'avg',
-            'count',
             'dd',
             'ddrawsql',
-            'doesntexist',
-            'doesntexistor',
             'dump',
             'dumprawsql',
-            'exists',
-            'existsor',
             'explain',
-            'getbindings',
-            'getconnection',
             'getgrammar',
             'getrawbindings',
             'implode',
-            'insert',
             'insertgetid',
             'insertorignore',
             'insertusing',
             'insertorignoreusing',
-            'max',
-            'min',
             'raw',
             'rawvalue',
-            'sum',
-            'tosql',
-            'torawsql',
         ])) {
-            throw new Exception("Method [{$method}] is not available on the Clickhouse Query Builder instance.");
+            throw NotSupportedException::queryBuilderMethod($method);
         }
 
         $this->forwardCallTo($this->query, $method, $parameters);

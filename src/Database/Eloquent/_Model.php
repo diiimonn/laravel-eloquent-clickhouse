@@ -6,6 +6,7 @@ namespace One23\LaravelClickhouse\Database\Eloquent;
 
 use Illuminate\Database\Eloquent\Model as BaseModel;
 use Illuminate\Support\Str;
+use One23\LaravelClickhouse\Exceptions\NotSupportedException;
 
 /**
  * if use extends Illuminate\Database\Eloquent\Model we have errors =(
@@ -60,7 +61,7 @@ abstract class Model extends BaseModel
      */
     public function setIncrementing($value)
     {
-        throw new \Exception('Is not supported on Clickhouse models.');
+        throw NotSupportedException::incrementing();
     }
 
     /**
@@ -103,7 +104,7 @@ abstract class Model extends BaseModel
         ];
 
         if (in_array($method, $methods)) {
-            dd("Method [{$method}] is not supported on Clickhouse models.");
+            throw NotSupportedException::method($method, 'ClickHouse');
         }
 
         return parent::__call($method, $parameters);

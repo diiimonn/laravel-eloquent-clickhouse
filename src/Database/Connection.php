@@ -6,6 +6,7 @@ namespace One23\LaravelClickhouse\Database;
 
 use Illuminate\Support\Arr;
 use One23\LaravelClickhouse\Database\Query\Builder;
+use One23\LaravelClickhouse\Database\Schema\Builder as SchemaBuilder;
 use One23\LaravelClickhouse\Exceptions\NotSupportedException;
 
 class Connection extends \Tinderbox\ClickhouseBuilder\Integrations\Laravel\Connection
@@ -25,6 +26,30 @@ class Connection extends \Tinderbox\ClickhouseBuilder\Integrations\Laravel\Conne
     public function query()
     {
         return new Builder($this);
+    }
+
+    /**
+     * Get a schema builder instance for the connection.
+     */
+    public function getSchemaBuilder(): SchemaBuilder
+    {
+        return new SchemaBuilder($this);
+    }
+
+    /**
+     * Get the name of the connected database.
+     */
+    public function getDatabaseName(): string
+    {
+        return $this->getConfig('database') ?? 'default';
+    }
+
+    /**
+     * Get the table prefix for the connection.
+     */
+    public function getTablePrefix(): string
+    {
+        return $this->getConfig('prefix') ?? '';
     }
 
     //
