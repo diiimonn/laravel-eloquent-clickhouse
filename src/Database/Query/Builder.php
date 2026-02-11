@@ -26,6 +26,7 @@ use One23\LaravelClickhouse\Exceptions\QueryException;
 use Tinderbox\ClickhouseBuilder\Integrations\Laravel\Builder as BaseBuilder;
 use Tinderbox\ClickhouseBuilder\Query\Enums\Operator;
 use Tinderbox\ClickhouseBuilder\Query\Expression;
+use Tinderbox\ClickhouseBuilder\Query\Identifier;
 use Tinderbox\ClickhouseBuilder\Query\Limit;
 use UnitEnum;
 
@@ -1914,13 +1915,29 @@ SQL;
             $without['orders'] = [];
         }
 
+        $col = $column === '*' ? '*' : $this->grammar->wrap(new Identifier($column));
+
+        $distinct = '';
+        if (is_array($this->distinct)) {
+            $col = implode(', ', array_map(fn($c) => $this->grammar->wrap(new Identifier($c)), $this->distinct));
+            $distinct = 'DISTINCT ';
+        } elseif ($this->distinct && $column !== '*') {
+            $distinct = 'DISTINCT ';
+        }
+
         return $this->cloneWithout($without)
-            ->selectRaw('count(' . ($column === '*' ? '*' : $this->grammar->wrap($column)) . ') as `count`');
+            ->selectRaw("count({$distinct}{$col}) as `count`");
     }
 
     protected function grammar__columnize(array $columns)
     {
-        return implode(', ', array_map([$this->grammar, 'wrap'], $columns));
+        return implode(', ', array_map(function ($column) {
+            if ($column === '*') {
+                return '*';
+            }
+
+            return $this->grammar->wrap(new Identifier($column));
+        }, $columns));
     }
 
     public function getLimit(): ?Limit
